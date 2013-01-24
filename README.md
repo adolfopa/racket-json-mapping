@@ -34,12 +34,18 @@ Suppose you have a snippet of JSON like the following:
 
 You can read it easily with the `json` package, but mapping the Jsexpr
 to the final representation of the data in your application requires a
-moderate ammount of boilerplate.
+moderate ammount of boilerplate. This package tries to minimize the
+amount of code you have to write to map between jsexprs and regular
+Racket structs.
 
     (require json)
+    (require json-mapping)
 
     (define jsexpr
       (read-json (open-input-string gist-json)))
+
+    ;; In this example, we want to map the JSON data
+    ;; into a `gist' struct.
 
     (struct gist (url
                   id
@@ -53,21 +59,15 @@ moderate ammount of boilerplate.
                   git-push-url
                   created-at)
       #:transparent)
-    
+
+    ;; In addition to other data, the gist contains a
+    ;; reference to a user.
     (struct user (login id avatar-url gravatar-id url)
       #:transparent)
 
-    (define the-gist
-      (gist (hash-ref jsexpr 'url)
-            (hash-ref jsexpr 'id)
-	    (hash-ref jsexpr 'public)
-	    ...))
+    ;; Now, we describe how we want our jsexpr mapped
+    ;; into out structures.
 
-This package tries to minimize the amount of code you have to write to
-map between jsexprs and regular Racket structs.
-
-    (require json-mapping)
-    
     (define gist-mapping
       (json-mapping
        (object gist
@@ -92,13 +92,13 @@ map between jsexprs and regular Racket structs.
          [gravatar_id : string]
          [url : string])))
       
-    ;; Transform the given jsexpr into the Racket
-    ;; datum specified by the mapping.
+    ;; Transform the given jsexpr into a racket datum.
     (define the-gist
       (jsexpr->datum gist-mapping a-gist))
 
-    ;; Transform the struct back into a jsexpr.
+    ;; ... and transform it back into a jsexpr
     (define the-jsexpr
       (datum->jsexpr gist-mapping the-gist))
 
-And that's all.
+And that's all. There is still a lot of functionality missing, but
+for simple mappings it is enough as it is.

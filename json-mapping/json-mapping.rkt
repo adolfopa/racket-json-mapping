@@ -90,6 +90,23 @@
          #'(with-handlers ([exn:fail:json?
                             (λ (_) rest-body)])
              body))]))
+  (define (emit-hash-body stx emitter)
+    (syntax-case stx (: object)
+      [(id (object [name : mapping] ...))
+       (with-syntax* ([(tmp ...)
+                       (generate-temporaries #'(name ...))]
+                      [(value ...)
+                       (for/syntax #'here ([n (in-syntax #'(name ...))])
+                         #`(hash-ref id '#,n))]
+                      [(expr/tmp ...)
+                       (for/syntax #'here ([t (in-syntax #'(tmp ...))]
+                                           [m (in-syntax #'(mapping ...))])
+                         (emitter #`(#,t #,m)))])
+         #'(if (hash? id)
+               (let ([tmp value]
+                     ...)
+                 (make-immutable-hash `((name . ,expr/tmp) ...)))
+               (raise-json-error '(object [name : mapping] ...) id)))]))
   
   (define (emit-datum->jsexpr-body stx)
     (syntax-case stx (: or bool number string literal list object)
@@ -105,6 +122,8 @@
        (emit-list-body #'(id (list mapping)) emit-datum->jsexpr-body)]
       [(id (or mapping ...))
        (emit-or-body #'(id (or mapping ...)) emit-datum->jsexpr-body)]
+      [(id (object [name : mapping] ...))
+       (emit-hash-body #'(id (object [name : mapping] ...)) emit-datum->jsexpr-body)]
       [(id (object mk [name : mapping] ...))
        (with-syntax* ([(tmp ...)
                        (generate-temporaries #'(name ...))]
@@ -141,6 +160,8 @@
        (emit-list-body #'(id (list mapping)) emit-jsexpr->datum-body)]
       [(id (or mapping ...))
        (emit-or-body #'(id (or mapping ...)) emit-jsexpr->datum-body)]
+      [(id (object [name : mapping] ...))
+       (emit-hash-body #'(id (object [name : mapping] ...)) emit-datum->jsexpr-body)]
       [(id (object mk [name : mapping] ...))
        (with-syntax* ([(tmp ...)
                        (generate-temporaries #'(name ...))]
@@ -198,6 +219,13 @@
     (check-exn exn:fail:json? (thunk (f a-string 'a)))
     (check-exn exn:fail:json? (thunk (f a-literal "b")))
     (check-exn exn:fail:json? (thunk (f a-list '(a)))))
+  
+  (check-equal? (datum->jsexpr (json-mapping (object [foo : string]))
+                               (hash 'foo "a"))
+                (hash 'foo "a"))
+  (check-equal? (jsexpr->datum (json-mapping (object [foo : string]))
+                               (hash 'foo "a"))
+                (hash 'foo "a"))
   
   (struct foo (a b c) #:transparent)
   

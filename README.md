@@ -34,9 +34,9 @@ Suppose you have a snippet of JSON like the following:
 
 You can read it easily with the `json` package, but mapping the Jsexpr
 to the final representation of the data in your application requires a
-moderate ammount of boilerplate. This package tries to minimize the
-amount of code you have to write to map between jsexprs and regular
-Racket structs.
+moderate ammount of boilerplate. With the `json-mapping` package, you
+simply declare the "shape" of your data, and it will generate the
+necessary code to map from Racket data to jsexpr and viceversa.
 
     (require json)
     (require json-mapping)
@@ -62,6 +62,7 @@ Racket structs.
 
     ;; In addition to other data, the gist contains a
     ;; reference to a user.
+
     (struct user (login id avatar-url gravatar-id url)
       #:transparent)
 
@@ -102,3 +103,46 @@ Racket structs.
 
 And that's all. There is still a lot of functionality missing, but
 for simple mappings it is enough as it is.
+
+Right now, `json-mapping` supports the following mappings:
+ - `string`, a string,
+ - `number`, an integer or inexact real,
+ - `bool`, a boolean,
+ - `list`, a list of mappings (e.g. `(list string)` or
+   `(list (object [foo : number]))`)
+ - `object`, a hash or Racket struct,
+ - `literal`, a literal datum (e.g. `(literal "a")` matches only the `"a"`
+    value and nothing more),
+ - `or`, any of a given set of mappings (e.g. `(or string number)` matches
+   either a string or a number).
+
+`object` mappings match both literal hashes and struct mappings. When an
+`object` mapping has the form
+```racket
+(object cons [a : m1] [b : m2] ...)
+```
+it is assumed that the jsexpr should be transformed into a struct with the given
+`cons` constructor. If otherwise the `object`
+mapping is like:
+```racket
+(object [a : m1] [b : m2] ...)
+```
+the jsexpr will be transformed into an immutable hash. For example:
+```racket
+(datum->jsexpr (json-mapping (object [foo : string]))
+               (hash 'foo "a"))
+=> '#hash((foo . "a"))
+
+(struct bar (foo) #:transparent)
+
+(jsexpr->datum (json-mapping (object bar [foo : string]))
+               (hash 'foo "a"))
+=> (bar "a")
+```
+
+Finally, there are a couple of restrictions you have to meet in order to use
+this library:
+  1. All structs must be transparent (`json-mapping` needs to use
+    `struct->vector` internally),
+  2. An object mapping must declare its components in the order expected by
+     the constructor function.
